@@ -166,6 +166,20 @@
   .tog .dot{width:7px;height:7px;border:1px solid var(--brass-dim);flex:none;transition:background .16s}
   .tog[aria-pressed=true]{color:var(--brass);border-color:var(--rule)}
   .tog[aria-pressed=true] .dot{background:var(--brass);border-color:var(--brass)}
+  .swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+  .swatches button{
+    height:30px;padding:0;cursor:pointer;
+    border:1px solid rgba(232,226,212,.18);
+  }
+  .swatches button[aria-pressed=true]{
+    border-color:var(--brass);
+    box-shadow:0 0 0 2px var(--void), 0 0 0 3px var(--brass);
+  }
+  .swatches button:focus-visible{outline:2px solid var(--verdigris);outline-offset:2px}
+  #ringFit{width:100%;margin-top:12px}
+  #ringRow[hidden]{display:none}
+
+  .tog.wide{grid-column:1 / -1}
   .tog:focus-visible{outline:2px solid var(--verdigris);outline-offset:-2px}
 
   /* ---------- overlays ---------- */
@@ -200,6 +214,37 @@
     font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
   }
   #sheet .hint{margin:10px 0 14px}
+
+  .mini{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--dim);white-space:nowrap}
+  #radius{
+    flex:1;min-width:0;background:none;border:1px solid var(--rule);color:var(--brass);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;padding:8px 10px;
+  }
+  #radius:focus-visible{outline:2px solid var(--verdigris);outline-offset:-2px}
+  #legs .pacehead{
+    margin-top:12px;padding:8px 0 4px;
+    font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+    border-top:1px solid rgba(200,155,74,.28);
+  }
+  #legs:not(:empty){margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:11px}
+  #legs .leg{display:flex;justify-content:space-between;gap:10px;padding:6px 0;
+    border-bottom:1px solid rgba(200,155,74,.12);color:var(--dim)}
+  #legs .leg b{color:var(--brass);font-weight:400;text-align:right;white-space:nowrap}
+  #legs .leg span{flex:1;min-width:0}
+  #legs .tot{border-bottom:none;color:var(--bone)}
+  #legs .sub{color:var(--dim);padding-left:12px}
+  #legs .sub b{color:var(--dim)}
+  #legs em{font-style:normal;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
+  #legs em.land{color:#D9483B}
+  #legs em.sea{color:#4A9FD8}
+  #tSea[aria-pressed=true]{color:#7EBCE6;border-color:rgba(74,159,216,.45)}
+  #tSea[aria-pressed=true] .dot{background:#4A9FD8;border-color:#4A9FD8}
+  .mini-btn{
+    padding:10px;cursor:pointer;background:none;border:1px solid var(--rule);color:var(--brass);
+    font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  }
+  .mini-btn:hover{background:rgba(200,155,74,.12)}
 
   .seg.two{grid-template-columns:repeat(2,1fr)}
   .gap{margin-top:9px}
@@ -243,6 +288,7 @@
 
 <div id="readout">
   <div><div class="cap">Facing</div><div class="val" id="rFace">—</div></div>
+  <div id="rPathCell" hidden><div class="cap">Journey</div><div class="val" id="rPath">—</div></div>
   <div><div class="cap">Source</div><div class="val" id="rSrc">none</div></div>
 </div>
 
@@ -294,8 +340,8 @@
   <div class="row">
     <span class="label">Axial tilt</span>
     <div class="slide">
-      <input type="range" id="tilt" min="0" max="45" step="0.5" value="23.5" aria-label="Axial tilt">
-      <span class="num" id="tiltNum">23.5°</span>
+      <input type="range" id="tilt" min="-45" max="45" step="0.5" value="23.5" aria-label="Axial tilt">
+      <span class="num" id="tiltNum">+23.5°</span>
     </div>
   </div>
 
@@ -314,6 +360,58 @@
       <button class="tog" id="tSun" aria-pressed="false"><span class="dot"></span>Sunlight</button>
       <button class="tog" id="tStars" aria-pressed="true"><span class="dot"></span>Starfield</button>
       <button class="tog" id="tAtmo" aria-pressed="true"><span class="dot"></span>Halo</button>
+      <button class="tog wide" id="tRing" aria-pressed="false"><span class="dot"></span>Rings</button>
+    </div>
+  </div>
+
+  <div class="row" id="ringRow" hidden>
+    <span class="label">Ring shape</span>
+    <div class="slide">
+      <span class="mini">Inner</span>
+      <input type="range" id="ringIn" min="1.1" max="2.4" step="0.01" value="1.38" aria-label="Ring inner radius">
+      <span class="num" id="ringInNum">1.38 R</span>
+    </div>
+    <div class="slide gap">
+      <span class="mini">Width</span>
+      <input type="range" id="ringW" min="0.1" max="1.8" step="0.01" value="0.92" aria-label="Ring width">
+      <span class="num" id="ringWNum">0.92 R</span>
+    </div>
+    <div class="slide gap">
+      <span class="mini">Opacity</span>
+      <input type="range" id="ringOp" min="10" max="100" step="1" value="92" aria-label="Ring opacity">
+      <span class="num" id="ringOpNum">92%</span>
+    </div>
+    <span class="mini gap" style="display:block">Tint</span>
+    <div class="swatches" id="ringTint">
+      <button data-c="#F4F1EA" aria-label="Ice" title="Ice" style="background:#F4F1EA"></button>
+      <button data-c="#E8E2D4" aria-pressed="true" aria-label="Bone" title="Bone" style="background:#E8E2D4"></button>
+      <button data-c="#D9CDB4" aria-label="Sand" title="Sand" style="background:#D9CDB4"></button>
+      <button data-c="#C2A87C" aria-label="Dust" title="Dust" style="background:#C2A87C"></button>
+      <button data-c="#A07E52" aria-label="Ochre" title="Ochre" style="background:#A07E52"></button>
+      <button data-c="#7B5C3C" aria-label="Umber" title="Umber" style="background:#7B5C3C"></button>
+      <button data-c="#5A422C" aria-label="Rust brown" title="Rust brown" style="background:#5A422C"></button>
+      <button data-c="#C8C6C0" aria-label="Ash" title="Ash" style="background:#C8C6C0"></button>
+      <button data-c="#8E9194" aria-label="Slate" title="Slate" style="background:#8E9194"></button>
+      <button data-c="#5E6367" aria-label="Basalt" title="Basalt" style="background:#5E6367"></button>
+    </div>
+    <button class="mini-btn" id="ringFit">Fit in view</button>
+  </div>
+
+  <div class="row">
+    <span class="label">Journey</span>
+    <div class="toggles">
+      <button class="tog" id="tMeasure" aria-pressed="false"><span class="dot"></span>Drop pins</button>
+      <button class="tog" id="tSea" aria-pressed="false"><span class="dot"></span>Sea leg</button>
+    </div>
+    <div class="slide gap">
+      <span class="mini">Planet radius</span>
+      <input type="number" id="radius" value="6371" min="1" step="1" aria-label="Planet radius in kilometres">
+      <span class="mini">km</span>
+    </div>
+    <div id="legs"></div>
+    <div class="toggles gap">
+      <button class="mini-btn" id="undoPin">Undo pin</button>
+      <button class="mini-btn" id="clearPins">Clear all</button>
     </div>
   </div>
 
@@ -434,6 +532,115 @@ var gratMesh = new THREE.Mesh(
 );
 gratMesh.visible = false;
 globe.add(gratMesh);
+
+// --- journey pins ---
+var pinLayer = new THREE.Group();
+globe.add(pinLayer);
+var pins = [];                 // {v: unit vector in globe-local space, sea: bool}
+var planetRadius = 6371;       // km; Earth by default
+var seaMode = false;           // whether the next leg dropped is a sea crossing
+// Sustained daily rates for overland and sea travel, not best-case sprints.
+var LAND_PACES = [
+  {n:'On foot',       k:30},
+  {n:'Wagon or cart', k:25},
+  {n:'On horseback',  k:50},
+  {n:'Forced march',  k:60}
+];
+var SEA_PACE = {n:'Sailing ship', k:190};
+var measuring = false;
+
+var LAND_COL = 0xD9483B, SEA_COL = 0x4A9FD8;
+var pinDot  = {land:new THREE.MeshBasicMaterial({color:LAND_COL}),
+               sea: new THREE.MeshBasicMaterial({color:SEA_COL})};
+var pinLine = {land:new THREE.LineBasicMaterial({color:LAND_COL}),
+               sea: new THREE.LineBasicMaterial({color:SEA_COL})};
+var arcLine = {land:new THREE.LineBasicMaterial({color:LAND_COL}),
+               sea: new THREE.LineBasicMaterial({color:SEA_COL})};
+var pinGeo  = new THREE.SphereGeometry(0.009, 12, 10);
+
+// --- planetary ring ---
+// The ring lives inside the globe group, so it shares the planet's equatorial
+// plane and inherits the axial tilt. Spinning about the pole is invisible on a
+// rotationally symmetric annulus, so the yaw rotation costs nothing.
+var ringInner = 1.38, ringWidth = 0.92;
+function ringOuter(){ return ringInner + ringWidth; }
+
+// The texture is neutral grey. Colour comes from material.color multiplying it,
+// which means the tint can change without regenerating a single pixel.
+function makeRingTexture(){
+  var W = 1024;
+  var c = document.createElement('canvas');
+  c.width = W; c.height = 1;
+  var x = c.getContext('2d');
+  var img = x.createImageData(W, 1);
+
+  function bump(t, at, w){ return Math.exp(-Math.pow((t-at)/w, 2)); }
+
+  for (var i=0;i<W;i++){
+    var t = i/(W-1);                       // 0 at inner edge, 1 at outer
+
+    // Layered striations at three scales, the way real ring systems band.
+    var a = 0.58
+          + 0.20*Math.sin(t*37.0)
+          + 0.13*Math.sin(t*96.0 + 1.3)
+          + 0.08*Math.sin(t*213.0 + 0.7);
+
+    a *= 1 - 0.92*bump(t, 0.62, 0.030);    // a Cassini-style division
+    a *= 1 - 0.55*bump(t, 0.30, 0.016);    // a narrower inner gap
+    a *= 1 - 0.35*bump(t, 0.84, 0.012);
+
+    a *= Math.min(1, t/0.05);              // soften both edges
+    a *= Math.min(1, (1-t)/0.07);
+    a = clamp(a, 0, 1);
+
+    var lum = Math.round(255 * (0.55 + 0.45*a));
+    var o = i*4;
+    img.data[o] = img.data[o+1] = img.data[o+2] = lum;
+    img.data[o+3] = Math.round(255*a);
+  }
+  x.putImageData(img, 0, 0);
+  return c;
+}
+
+var ringTex = new THREE.CanvasTexture(makeRingTexture());
+ringTex.encoding = THREE.sRGBEncoding;
+ringTex.anisotropy = maxAniso;
+ringTex.wrapS = ringTex.wrapT = THREE.ClampToEdgeWrapping;
+
+var ringFlat = new THREE.MeshBasicMaterial({
+  map:ringTex, transparent:true, side:THREE.DoubleSide, depthWrite:false
+});
+var ringLit = new THREE.MeshPhongMaterial({
+  map:ringTex, transparent:true, side:THREE.DoubleSide, depthWrite:false,
+  shininess:0, specular:0x000000
+});
+
+var ring = new THREE.Mesh(new THREE.BufferGeometry(), ringFlat);
+ring.rotation.x = -Math.PI/2;
+ring.renderOrder = 2;
+ring.visible = false;
+globe.add(ring);
+
+function rebuildRing(){
+  var inner = ringInner, outer = ringOuter();
+  var g = new THREE.RingGeometry(inner, outer, 256, 1);
+  // Remap UVs so u runs along the radius. The default ring UVs are square-box
+  // mapped, which would smear the bands instead of ringing them.
+  var p = g.attributes.position, uv = g.attributes.uv;
+  for (var i=0;i<p.count;i++){
+    var r = Math.hypot(p.getX(i), p.getY(i));
+    uv.setXY(i, (r - inner) / (outer - inner), 0.5);
+  }
+  uv.needsUpdate = true;
+  if (ring.geometry) ring.geometry.dispose();
+  ring.geometry = g;
+}
+rebuildRing();
+
+// Camera distance at which the whole ring system fits in frame.
+function ringFitDist(){
+  return (ringOuter() + 0.18) / Math.tan(camera.fov * Math.PI / 360);
+}
 
 // --- lights ---
 var sun = new THREE.DirectionalLight(0xfff3e0, 1.25);
@@ -982,7 +1189,9 @@ function exportGIF(){
 
   var prevStars = stars.visible, prevHalo = halo.visible;
   var prevYaw = yaw, prevPR = renderer.getPixelRatio();
-  var eDist = Math.max(dist, 3.4);   // never crop the sphere out of frame
+  // Never crop the subject out of frame. Rings need far more room than the
+  // sphere alone, and how much depends on the width they're set to.
+  var eDist = Math.max(dist, ring.visible ? ringFitDist() : 3.4);
 
   renderer.setPixelRatio(1);
   renderer.setSize(S, S, false);
@@ -1083,6 +1292,7 @@ var panX = 0, panY = 0, userPanned = false;
 
 var el = renderer.domElement;
 var dragMode = null;
+var downX = 0, downY = 0, downT = 0, moved = false;
 
 el.addEventListener('contextmenu', function(e){ e.preventDefault(); });
 
@@ -1093,6 +1303,7 @@ el.addEventListener('pointerdown', function(e){
     dragMode = (e.shiftKey || e.button === 1 || e.button === 2) ? 'pan' : 'rotate';
     dragging = (dragMode === 'rotate');
     lastX = e.clientX; lastY = e.clientY; vYaw = vPitch = 0;
+    downX = e.clientX; downY = e.clientY; downT = Date.now(); moved = false;
     el.setPointerCapture(e.pointerId);
   } else if (n === 2){
     dragMode = 'gesture'; dragging = false;
@@ -1109,7 +1320,7 @@ el.addEventListener('pointermove', function(e){
   if (n >= 2 && dragMode === 'gesture'){
     var d = pinchDist();
     if (pinchStart > 0 && d > 0){
-      distTarget = clamp(distTarget * (pinchStart/d), 1.55, 8);
+      distTarget = clamp(distTarget * (pinchStart/d), 1.55, 14);
       pinchStart = d;
     }
     var c = centroid();
@@ -1120,6 +1331,7 @@ el.addEventListener('pointermove', function(e){
 
   var dx = e.clientX - lastX, dy = e.clientY - lastY;
   lastX = e.clientX; lastY = e.clientY;
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) moved = true;
 
   if (dragMode === 'pan'){ panBy(dx, dy); return; }
   if (dragMode !== 'rotate') return;
@@ -1129,20 +1341,27 @@ el.addEventListener('pointermove', function(e){
 });
 
 function endPointer(e){
+  var wasRotate = (dragMode === 'rotate');
   delete pointers[e.pointerId];
   var n = Object.keys(pointers).length;
   if (n < 2) pinchStart = 0;
   if (n === 0){ dragging = false; dragMode = null; }
+
+  // A tap that didn't travel and didn't linger drops a pin.
+  if (measuring && wasRotate && n === 0 && !moved && Date.now() - downT < 600){
+    var p = pickLocal(e.clientX, e.clientY);
+    if (p){ pins.push({v:p, sea:seaMode}); rebuildPins(); updatePath(); }
+  }
 }
 el.addEventListener('pointerup', endPointer);
 el.addEventListener('pointercancel', endPointer);
 
 el.addEventListener('wheel', function(e){
   e.preventDefault();
-  distTarget = clamp(distTarget + e.deltaY * 0.0022, 1.55, 8);
+  distTarget = clamp(distTarget + e.deltaY * 0.0022, 1.55, 14);
 }, {passive:false});
 
-el.addEventListener('dblclick', function(){ recenter(); });
+el.addEventListener('dblclick', function(){ if (!measuring) recenter(); });
 
 function panBy(dx, dy){ panX += dx; panY += dy; userPanned = true; }
 
@@ -1181,6 +1400,158 @@ function recenter(){
 }
 
 /* ---------------------------------------------------------------
+   3b. Journey measuring
+--------------------------------------------------------------- */
+var _ray = new THREE.Raycaster();
+var _ndc = new THREE.Vector2();
+
+// Turn a screen tap into a point on the sphere, in globe-local space so the
+// pin travels with the map when you spin it.
+function pickLocal(cx, cy){
+  var r = el.getBoundingClientRect();
+  _ndc.x =  ((cx - r.left) / r.width)  * 2 - 1;
+  _ndc.y = -((cy - r.top)  / r.height) * 2 + 1;
+  _ray.setFromCamera(_ndc, camera);
+  var hit = _ray.intersectObject(sphere, false);
+  if (!hit.length) return null;
+  var p = hit[0].point.clone();
+  sphere.worldToLocal(p);
+  return p.normalize();
+}
+
+// Great-circle angle times radius. This is the real surface distance between
+// two points on a sphere, not the straight line through the middle of it.
+function legKm(a, b){
+  return Math.acos(clamp(a.dot(b), -1, 1)) * planetRadius;
+}
+// Each pin carries the mode of the leg arriving at it, so a single journey can
+// mix overland stretches with sea crossings.
+function splitKm(){
+  var land = 0, sea = 0;
+  for (var i=1;i<pins.length;i++){
+    var d = legKm(pins[i-1].v, pins[i].v);
+    if (pins[i].sea) sea += d; else land += d;
+  }
+  return {land:land, sea:sea, total:land+sea};
+}
+function totalKm(){ return splitKm().total; }
+function fmtDist(km){
+  return Math.round(km).toLocaleString() + ' km · ' +
+         Math.round(km * 0.621371).toLocaleString() + ' mi';
+}
+function fmtTime(days){
+  if (days < 1) return Math.max(1, Math.round(days*24)) + ' hr';
+  if (days < 400){
+    var d = Math.round(days);
+    return d.toLocaleString() + (d === 1 ? ' day' : ' days');
+  }
+  return (days/365).toFixed(1) + ' years';
+}
+
+function arcPoints(a, b, n){
+  var ang = Math.acos(clamp(a.dot(b), -1, 1));
+  var out = [];
+  if (ang < 1e-6) return [a.clone().multiplyScalar(1.006), b.clone().multiplyScalar(1.006)];
+  var s = Math.sin(ang);
+  for (var i=0;i<=n;i++){
+    var t = i/n;
+    var v = a.clone().multiplyScalar(Math.sin((1-t)*ang)/s)
+             .add(b.clone().multiplyScalar(Math.sin(t*ang)/s));
+    out.push(v.normalize().multiplyScalar(1.006));
+  }
+  return out;
+}
+
+function rebuildPins(){
+  for (var i=pinLayer.children.length-1;i>=0;i--){
+    var c = pinLayer.children[i];
+    pinLayer.remove(c);
+    if (c.geometry && c.geometry !== pinGeo) c.geometry.dispose();
+  }
+  pins.forEach(function(p){
+    var kind = p.sea ? 'sea' : 'land';
+    var m = new THREE.Mesh(pinGeo, pinDot[kind]);
+    m.position.copy(p.v).multiplyScalar(1.03);
+    pinLayer.add(m);
+    var stalk = new THREE.BufferGeometry().setFromPoints([
+      p.v.clone().multiplyScalar(1.0), p.v.clone().multiplyScalar(1.03)
+    ]);
+    pinLayer.add(new THREE.Line(stalk, pinLine[kind]));
+  });
+  for (var j=1;j<pins.length;j++){
+    var g = new THREE.BufferGeometry().setFromPoints(arcPoints(pins[j-1].v, pins[j].v, 72));
+    pinLayer.add(new THREE.Line(g, arcLine[pins[j].sea ? 'sea' : 'land']));
+  }
+}
+
+function latLonOf(v){
+  var lat = Math.asin(clamp(v.y, -1, 1)) * 180/Math.PI;
+  var phi = Math.atan2(v.z, -v.x);
+  if (phi < 0) phi += Math.PI*2;
+  var u = phi/(Math.PI*2) + mapTex.offset.x;
+  u -= Math.floor(u);
+  return {lat: lat, lon: -180 + u*360};
+}
+function fmtLatLon(ll){
+  return Math.abs(ll.lat).toFixed(1) + '\u00B0' + (ll.lat>=0?'N':'S') + ' ' +
+         Math.abs(ll.lon).toFixed(1) + '\u00B0' + (ll.lon>=0?'E':'W');
+}
+
+function updatePath(){
+  var box = document.getElementById('legs');
+  var cell = document.getElementById('rPathCell');
+  var html = '';
+
+  if (pins.length === 0){
+    box.innerHTML = '';
+    cell.hidden = true;
+    return;
+  }
+  if (pins.length === 1){
+    html = '<div class="leg"><span>Start</span><b>' + fmtLatLon(latLonOf(pins[0].v)) + '</b></div>' +
+           '<div class="leg"><span>Tap again to measure a leg</span></div>';
+    box.innerHTML = html;
+    cell.hidden = true;
+    return;
+  }
+
+  function row(a, b, cls){
+    return '<div class="leg' + (cls ? ' ' + cls : '') + '"><span>' + a + '</span><b>' + b + '</b></div>';
+  }
+
+  for (var i=1;i<pins.length;i++){
+    var tag = pins[i].sea
+      ? ' <em class="sea">sea</em>'
+      : ' <em class="land">land</em>';
+    html += row('Leg ' + i + tag, fmtDist(legKm(pins[i-1].v, pins[i].v)));
+  }
+
+  var s = splitKm();
+  html += row('Total', fmtDist(s.total), 'tot');
+  if (s.land > 0 && s.sea > 0){
+    html += row('Overland', fmtDist(s.land), 'sub');
+    html += row('By sea',   fmtDist(s.sea),  'sub');
+  }
+
+  html += '<div class="pacehead">Travel time</div>';
+  // Land paces carry the sea time along with them, since a mixed journey still
+  // has to cross the water somehow.
+  if (s.land > 0){
+    LAND_PACES.forEach(function(p){
+      html += row(p.n, fmtTime(s.land/p.k + s.sea/SEA_PACE.k));
+    });
+  }
+  if (s.sea > 0){
+    html += row(s.land > 0 ? 'of which under sail' : SEA_PACE.n,
+                fmtTime(s.sea/SEA_PACE.k), s.land > 0 ? 'sub' : '');
+  }
+  box.innerHTML = html;
+
+  document.getElementById('rPath').textContent = fmtDist(s.total);
+  cell.hidden = false;
+}
+
+/* ---------------------------------------------------------------
    4. Readout — what point is facing the viewer
 --------------------------------------------------------------- */
 var rFace = document.getElementById('rFace');
@@ -1191,17 +1562,7 @@ function updateReadout(){
   globe.updateMatrixWorld();
   _inv.copy(globe.matrixWorld).invert();
   _v.set(0,0,1).applyMatrix4(_inv).normalize();
-
-  var lat = Math.asin(clamp(_v.y,-1,1)) * 180/Math.PI;
-  var phi = Math.atan2(_v.z, -_v.x);           // three.js sphere UV convention
-  if (phi < 0) phi += Math.PI*2;
-  var u = phi/(Math.PI*2) + mapTex.offset.x;
-  u = u - Math.floor(u);
-  var lon = -180 + u*360;
-
-  rFace.textContent =
-    Math.abs(lat).toFixed(1) + '°' + (lat>=0?'N':'S') + '  ' +
-    Math.abs(lon).toFixed(1) + '°' + (lon>=0?'E':'W');
+  rFace.textContent = fmtLatLon(latLonOf(_v));
 }
 
 /* ---------------------------------------------------------------
@@ -1447,7 +1808,10 @@ $('seam').addEventListener('input', function(){
 });
 $('tilt').addEventListener('input', function(){
   var v = +this.value;
-  $('tiltNum').textContent = v.toFixed(1) + '°';
+  // Sign is shown explicitly, otherwise the two directions are hard to tell
+  // apart at a glance. Values near zero snap upright so vertical is reachable.
+  if (Math.abs(v) < 0.75) v = 0;
+  $('tiltNum').textContent = (v > 0 ? '+' : '') + v.toFixed(1) + '\u00B0';
   axis.rotation.z = v * Math.PI/180;
 });
 axis.rotation.z = 23.5 * Math.PI/180;
@@ -1469,12 +1833,78 @@ function tog(id, fn){
   });
 }
 tog('tGrat',  function(on){ gratMesh.visible = on; });
-tog('tSun',   function(on){ sphere.material = on ? matLit : matFlat; });
+tog('tSun',   function(on){
+  sphere.material = on ? matLit : matFlat;
+  ring.material   = on ? ringLit : ringFlat;
+});
 tog('tStars', function(on){ stars.visible = on; });
 tog('tAtmo',  function(on){ halo.visible = on; });
+tog('tRing',  function(on){
+  ring.visible = on;
+  $('ringRow').hidden = !on;
+  if (on) fitRing();
+});
+
+// Ring shape and colour. Tint and opacity live on both materials so the
+// Sunlight toggle can swap between them without losing the look.
+var ringTint = '#E8E2D4';
+function applyRingLook(){
+  var op = +$('ringOp').value / 100;
+  [ringFlat, ringLit].forEach(function(m){
+    m.color.set(ringTint);
+    m.opacity = op;
+    m.needsUpdate = true;
+  });
+}
+function fitRing(){
+  // Only ever pull back, so a deliberate zoom-in isn't overridden.
+  var d = Math.min(14, ringFitDist());
+  if (distTarget < d) distTarget = d;
+}
+
+$('ringIn').addEventListener('input', function(){
+  ringInner = +this.value;
+  $('ringInNum').textContent = ringInner.toFixed(2) + ' R';
+  rebuildRing();
+});
+$('ringW').addEventListener('input', function(){
+  ringWidth = +this.value;
+  $('ringWNum').textContent = ringWidth.toFixed(2) + ' R';
+  rebuildRing();
+});
+$('ringOp').addEventListener('input', function(){
+  $('ringOpNum').textContent = this.value + '%';
+  applyRingLook();
+});
+$('ringTint').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  ringTint = b.dataset.c;
+  Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){
+    x.setAttribute('aria-pressed', String(x === b));
+  });
+  applyRingLook();
+});
+$('ringFit').addEventListener('click', fitRing);
+applyRingLook();
 // These two are read at export time rather than applied live.
 tog('tAlpha',  function(){});
 tog('tDither', function(){});
+
+// journey
+tog('tMeasure', function(on){ measuring = on; });
+tog('tSea',     function(on){ seaMode = on; });
+
+$('radius').addEventListener('input', function(){
+  var v = parseFloat(this.value);
+  planetRadius = (isFinite(v) && v > 0) ? v : 6371;
+  updatePath();
+});
+$('undoPin').addEventListener('click', function(){
+  pins.pop(); rebuildPins(); updatePath();
+});
+$('clearPins').addEventListener('click', function(){
+  pins.length = 0; rebuildPins(); updatePath();
+});
 
 $('center').addEventListener('click', recenter);
 
