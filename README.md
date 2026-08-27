@@ -1,86 +1,110 @@
 # Globify
 
-Wrap a flat map onto a 3D globe in your browser, then export a looping GIF of it turning.
+Hello. I've been building my own world for the majority of my life, and there are some tools I've been wanting to make for a while, which i now have made. Having a good way to track distance has plagued me, I also always have a hard time picturing distance on a flat map. So I made Globify.
 
-Built for worldbuilders who have a map and want to see what their world actually looks like as a planet.
+You drop in your map image and it wraps onto a 3D globe you can spin around. Then you drop pins along a route and it gives you real distances, plus how long it takes to travel them on foot, by wagon, on horseback, at forced march, or under sail.
 
-**[Try it in your browser](https://viruzodro.github.io/globify/)**  ·  **[Download it to keep](https://github.com/Viruzodro/globify/releases/latest)**  ·  **[Buy me a coffee](https://ko-fi.com/viruzodro)**
+**[Open it](https://viruzodro.github.io/globify/)**  ·  **[Download](https://github.com/Viruzodro/globify/releases/latest)**  ·  **[Buy me a coffee](https://ko-fi.com/viruzodro)**
 
 ![A world map turning as a globe](demo.gif)
 
-## What it does
+It's free and runs in your browser. Your map never leaves your computer, since there's no server involved at all. It's one HTML file with everything baked into it, so you can download it and use it offline forever. No need to install anything.
 
-- Drop in a JPG or PNG and see it wrapped on a sphere immediately
-- Reads your map as either **equirectangular** or **Mercator**, which is what determines whether your continents keep their shapes
-- Adjustable latitude span, so your art can stop short of the poles instead of pinching to a point
-- Movable prime meridian for hiding the seam behind an ocean
-- **Journey measuring**: drop pins on the globe and get true great-circle distances in both kilometres and miles, per leg and total, with travel time on foot, by wagon, on horseback, at forced march, and under sail
-- Set your planet's radius, so distances are right for your world and not just Earth's
-- Axial tilt, spin rate, graticule overlay, sunlight shading, starfield, atmosphere halo, and a banded Saturn-style ring system
-- Downloadable drawing templates with distortion marks, sized for whatever projection you pick
-- Exports a still PNG or a seamless looping GIF of a full 360° turn
+## Your map
 
-## Nothing is uploaded
+Use a 2:1 image, twice as wide as it is tall, and leave it on Equirectangular. Anything else, switch to Mercator and hit *Use the undistorted span*.
 
-Your map never leaves your computer. There is no server, no account, no analytics. The page reads the file locally and does all rendering and encoding in your browser.
+Equirectangular takes the width of your image and wraps it around 360° of longitude, and takes the height and runs it across 180° of latitude. 360 divided by 180 is 2, which is where the 2:1 comes from. Every row of your image gets stretched to wrap a full circle around the globe. Near the equator that circle is huge. Near the pole it's almost nothing. So the top and bottom rows of your image get crushed down to a point.
 
-## Works offline
+Which means a real equirectangular map has to be drawn pre-stretched at the poles, so the crushing cancels out. That's why Antarctica is a giant white bar across the bottom of every world map you've ever looked at, in case you were curious.
 
-`index.html` is completely self-contained. Three.js and both typefaces are embedded in the file. Download it, open it, and it works with your wifi off, forever.
+so if your map looks correct sitting flat, it's probably closer to Mercator. Mercator squeezes latitude toward the poles by the exact amount the wrap is going to stretch it back out, so your shapes come out right. The tradeoff is it can't reach the poles at all. A 16:9 map covers about ±70° of latitude and the caps above and below get filled in with a color sampled from the edges of your image.
 
-## What aspect ratio should my map be?
+Two other things. Try to make the left and right edges of your map match, since they meet at the seam. And if you can't, the prime meridian slider moves the seam somewhere else so you can park it over an ocean.
 
-For **equirectangular**, exactly 2:1. Width must be double the height, because the projection spreads the full width across 360° of longitude and the full height across 180° of latitude. Good sizes are 2048×1024 or 4096×2048.
+There's also a template you can download. It comes out sized for whatever projection you're on and it's covered in circles. Every circle on that sheet turns into a true circle on the globe. So round marks mean your shapes survive, stretched ovals mean they don't.
 
-For **Mercator**, any aspect ratio works. A 16:9 map covers about ±70.6° of latitude, and the poles above and below get filled with a cap color sampled from your map's edges.
+## World shapes
 
-If your flat map looks correct to your eye, it is probably closer to Mercator than equirectangular. A true equirectangular map has to be drawn pre-stretched, with the polar regions smeared absurdly wide, so that the stretching cancels out once it wraps. That is why Antarctica looks enormous on a world map.
+This has been the most requested feature.
 
-Use the **Download template** button to get a guide sheet at the right dimensions. Every circle on it becomes a true circle on the globe, so round marks mean your shapes will survive.
+**Globe** wraps your map onto a sphere.
 
-One more thing: make the left and right edges of your map match, since they meet at the seam.
+**Disc** reprojects it onto a flat circle, north pole in the middle, south pole spread all the way around the rim. That's the projection flat earth maps use, and it's why the ice wall goes where it does.
+
+**Plate** just lays the map down flat at its own proportions.
+
+Both flat shapes have an **Underside**, which is a craggy mass of rock hanging below the world, and an **Ice wall** around the edge. Either one can be toggled off.
 
 ## Measuring a journey
 
-Turn on **Drop pins**, then tap the globe to place them. Dragging still spins the globe; only a tap that stays put drops a pin. Each pin connects to the last one with a great-circle arc, which is the genuinely shortest surface route between two points on a sphere and not the straight line your flat map suggests.
+Turn on **Drop pins** and tap the globe. Dragging still spins it, only a tap that stays put drops a pin.
 
-Toggle **Sea leg** at any point to switch the journey between overland and sailing. Land legs and their pins are red, sea legs are blue, and a single journey can mix them freely. Distances are totalled separately, and the sailing pace only appears once there's water to cross.
+Pins connect with great circle arcs, which is the actual shortest path across a sphere. It's not the straight line your flat map shows you. Routes that cross high latitudes come out way shorter than you'd think.
 
-Distances show in kilometres and miles at once, per leg and as a running total. Underneath, travel time is listed for five paces simultaneously, so you can compare a march on foot against a ride or a sea crossing without changing any setting.
+Hit **Sea leg** to switch mid-journey, so a march to the coast followed by a crossing gives you better data. Land pins and legs are red, sea ones are blue, and one route can have as many of each as you want.
 
-Distances assume Earth's radius of 6371 km by default. Change **Planet radius** to match your world. A few reference points: Mars is 3390, a small habitable world might be 4000, and doubling the radius doubles every distance.
+Tap a pin, or its row in the list, to select it. Then you can **Insert after** to stick a stop in the middle of a route you already built, or **Delete pin** to pull one out and let the route close up around it. Undo takes off the last one. Clear all wipes it.
 
-The daily rates are sustained historical figures, not best-case sprints. On foot at 30 km/day is a reasonable pace for a party carrying gear over mixed terrain.
+You get distance per leg and total, in kilometers and miles at the same time, and land and sea get their own subtotals when you've used both. Travel time comes back for all five paces at once so you can compare them without changing a setting.
+
+| Pace | Rate |
+|---|---|
+| On foot | 30 km/day |
+| Wagon or cart | 25 km/day |
+| On horseback | 50 km/day |
+| Forced march | 60 km/day |
+| Sailing ship | 190 km/day |
+
+Those are sustained rates over mixed terrain, not a courier sprinting down a road. If your route has sea legs in it, the land paces already include the sailing time, and the sea portion gets listed separately underneath.
+
+**Planet radius** is set to Earth at 6371 km. Change it if your world isn't Earth-sized and every distance rescales. Mars is 3390 for reference.
+
+Two limitations you should know about. Sea legs take the same great circle as land legs, straight over whatever is in the way, so treat those numbers as a floor and not a real sailing route. Drop a few extra pins along the coast if you want something closer. And pins stick to the sphere, not to your image, so if you change projection after you've measured, the map slides around underneath them. Pick your projection first.
+
+## Rings
+
+Turn on **Rings** and a whole section shows up for them. **Inner** is where the ring starts, **Width** is how far out it goes, then **Opacity** and ten tints running white through brown plus a few greys.
+
+There's also **Tilt**, which is separate from the planet's axial tilt. So you can stand the ring straight up if you want, and it holds that angle while the world keeps spinning.
+
+The bands are generated instead of drawn, three layers of striations plus a few gaps including a big Cassini style division. The planet doesn't cast a shadow on the rings. That needs a custom shader and I haven't done it.
+
+## Everything else
+
+Axial tilt goes both directions now, -45° through 0 to +45°, and it sets the ring plane too. There's spin speed, a latitude and longitude grid, day/night lighting, a starfield, and an atmosphere halo. All toggleable.
+
+If your map looks soft when you zoom in, that's the **2K / 4K / 8K** setting. Your image gets redrawn onto an internal sheet before it ever reaches the GPU, and that sheet's size is what limits detail, not your source file. It starts at 4K. only go to 8K if your source is actually that big, since it costs real memory for nothing otherwise.
+
+## Exporting
+
+**Save this view as PNG** grabs a still.
+
+**Export a full turn as GIF** gives you a looping 360° spin, which is nice for a campaign doc or a Discord banner. You pick size, frame count, and how many seconds a turn takes. **Transparent** drops the background so it can sit on any page, though it turns off the starfield and halo, since GIF transparency is all or nothing per pixel and soft glows come out ragged. **Dither** cleans up banding in the shading and roughly doubles the file size.
+
+Whatever you export shows up in a panel. Save it from the button, or press and hold the image if your browser blocks the download.
 
 ## Controls
 
-| Action | Mouse | Touch |
+| | Mouse | Touch |
 |---|---|---|
-| Spin the globe | Drag | Drag |
-| Move the globe | Shift-drag or right-drag | Two-finger drag |
+| Spin | Drag | Drag |
+| Move | Shift-drag or right-drag | Two-finger drag |
 | Zoom | Scroll | Pinch |
-| Re-center | Double-click | The Center button |
+| Re-center | Double-click | Center button |
 
-## GIF export notes
+## Couple of three things
 
-- **Transparent** removes the background so the globe can sit on any page. It turns off the starfield and halo, because GIF transparency is strictly on or off per pixel and soft glows come out with ragged edges.
-- **Dither** hides color banding in the shading. GIF holds only 256 colors, so smooth gradients would otherwise break into stripes. Costs roughly double the file size.
-- A single palette is built across the whole rotation rather than per frame, which is what keeps the loop from shimmering.
+HEIC images won't load. No browser can decode them, so export as a JPG first. You can also paste an image straight out of your clipboard if that's easier.
 
-If the save button does nothing, press and hold the preview image and choose Save image. Some browsers block downloads from embedded frames.
-
-## Running it yourself
-
-Download `globify.html` from the [latest release](https://github.com/Viruzodro/globify/releases/latest) and double-click it. That's the whole install. No dependencies, no build step, no internet needed after the download.
+If a save button does nothing, your browser is blocking it. Press and hold the preview image instead, or download the file and open it directly instead of through a preview pane.
 
 ## Built with
 
-[Three.js](https://threejs.org) (MIT). Typefaces are [Spectral](https://fonts.google.com/specimen/Spectral) and [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono), both SIL Open Font License 1.1. The GIF encoder is written from scratch in this file: median-cut quantization, Floyd-Steinberg dithering, and LZW compression, with no dependencies.
+[Three.js](https://threejs.org) r128, embedded in the file. Fonts are Spectral and IBM Plex Mono, also embedded. The GIF encoder is written from scratch.
 
-## Support
-
-Globify is free and always will be. If it saved you time or you just like it, you can [buy me a coffee on Ko-fi](https://ko-fi.com/viruzodro). Entirely optional, and it doesn't unlock anything.
+anyway. I built this for my own campaign, so if something is missing, let me know. I'm hyperfixated on this right now so, I'll likely be able to add it fairly quickly, or at least until the ADHD juice runs out.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

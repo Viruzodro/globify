@@ -136,6 +136,7 @@
   }
   .seg button:first-child{border-left:none}
   .seg button[aria-pressed=true]{background:rgba(200,155,74,.16);color:var(--brass)}
+  .seg button:disabled{opacity:.3;cursor:default}
   .seg button:focus-visible{outline:2px solid var(--verdigris);outline-offset:-2px}
   .hint{margin-top:8px;font-size:12.5px;font-style:italic;color:var(--dim);line-height:1.45}
 
@@ -232,6 +233,14 @@
     border-bottom:1px solid rgba(200,155,74,.12);color:var(--dim)}
   #legs .leg b{color:var(--brass);font-weight:400;text-align:right;white-space:nowrap}
   #legs .leg span{flex:1;min-width:0}
+  #legs .pinrow{
+    width:100%;background:none;border:none;border-bottom:1px solid rgba(200,155,74,.12);
+    font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;text-align:left;
+  }
+  #legs .pinrow:hover{background:rgba(200,155,74,.07)}
+  #legs .pinrow.sel{background:rgba(200,155,74,.16);color:var(--bone)}
+  #legs .pinrow.sel b{color:var(--bone)}
+  #legs .pinrow:focus-visible{outline:2px solid var(--verdigris);outline-offset:-2px}
   #legs .tot{border-bottom:none;color:var(--bone)}
   #legs .sub{color:var(--dim);padding-left:12px}
   #legs .sub b{color:var(--dim)}
@@ -287,7 +296,7 @@
 </div>
 
 <div id="readout">
-  <div><div class="cap">Facing</div><div class="val" id="rFace">—</div></div>
+  <div id="rFaceCell"><div class="cap">Facing</div><div class="val" id="rFace">—</div></div>
   <div id="rPathCell" hidden><div class="cap">Journey</div><div class="val" id="rPath">—</div></div>
   <div><div class="cap">Source</div><div class="val" id="rSrc">none</div></div>
 </div>
@@ -305,6 +314,24 @@
       <span id="loadTxt">Choose, drop, or paste a JPG</span>
     </label>
     <input type="file" id="file" accept="image/*">
+    <div class="seg gap" id="detail">
+      <button data-d="2048" aria-pressed="true">2K</button>
+      <button data-d="4096" aria-pressed="false">4K</button>
+      <button data-d="8192" aria-pressed="false">8K</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <span class="label">World shape</span>
+    <div class="seg" id="shape">
+      <button data-w="globe" aria-pressed="true">Globe</button>
+      <button data-w="disc" aria-pressed="false">Disc</button>
+      <button data-w="plate" aria-pressed="false">Plate</button>
+    </div>
+    <div class="toggles gap" id="flatOpts" hidden>
+      <button class="tog" id="tUnder" aria-pressed="true"><span class="dot"></span>Underside</button>
+      <button class="tog" id="tIce" aria-pressed="true"><span class="dot"></span>Ice wall</button>
+    </div>
   </div>
 
   <div class="row">
@@ -377,6 +404,11 @@
       <span class="num" id="ringWNum">0.92 R</span>
     </div>
     <div class="slide gap">
+      <span class="mini">Tilt</span>
+      <input type="range" id="ringTilt" min="-90" max="90" step="1" value="0" aria-label="Ring tilt">
+      <span class="num" id="ringTiltNum">0°</span>
+    </div>
+    <div class="slide gap">
       <span class="mini">Opacity</span>
       <input type="range" id="ringOp" min="10" max="100" step="1" value="92" aria-label="Ring opacity">
       <span class="num" id="ringOpNum">92%</span>
@@ -397,7 +429,7 @@
     <button class="mini-btn" id="ringFit">Fit in view</button>
   </div>
 
-  <div class="row">
+  <div class="row" id="journeyRow">
     <span class="label">Journey</span>
     <div class="toggles">
       <button class="tog" id="tMeasure" aria-pressed="false"><span class="dot"></span>Drop pins</button>
@@ -410,7 +442,9 @@
     </div>
     <div id="legs"></div>
     <div class="toggles gap">
-      <button class="mini-btn" id="undoPin">Undo pin</button>
+      <button class="mini-btn" id="insPin" disabled>Insert after</button>
+      <button class="mini-btn" id="delPin" disabled>Delete pin</button>
+      <button class="mini-btn" id="undoPin">Undo</button>
       <button class="mini-btn" id="clearPins">Clear all</button>
     </div>
   </div>
@@ -480,6 +514,8 @@
 (function(){
 'use strict';
 
+// Working resolution of the equirectangular sheet the sphere samples from.
+// This, not your source file, is what limits how much detail survives.
 var TEX_W = 2048, TEX_H = 1024;
 var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -498,10 +534,16 @@ var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
 camera.position.set(0, 0, 3.4);
 
 // axis holder (tilt) -> globe holder (yaw/pitch from drag)
+// axis (axial tilt) -> tiltGroup (view pitch) -> globe (spin)
+// The ring hangs off tiltGroup rather than globe, so it follows the viewing
+// angle but is not dragged around by the world's rotation. That is what lets
+// a ring tilt stay put once you've set it.
 var system = new THREE.Group();
 var axis = new THREE.Group();
+var tiltGroup = new THREE.Group();
 var globe = new THREE.Group();
-axis.add(globe);
+tiltGroup.add(globe);
+axis.add(tiltGroup);
 system.add(axis);
 scene.add(system);
 
@@ -557,6 +599,14 @@ var pinLine = {land:new THREE.LineBasicMaterial({color:LAND_COL}),
 var arcLine = {land:new THREE.LineBasicMaterial({color:LAND_COL}),
                sea: new THREE.LineBasicMaterial({color:SEA_COL})};
 var pinGeo  = new THREE.SphereGeometry(0.009, 12, 10);
+var selMat  = new THREE.MeshBasicMaterial({color:0xF4F1EA});
+var selGeo  = new THREE.SphereGeometry(0.016, 14, 12);
+// A 0.009 sphere is a couple of pixels on screen, far too small to tap. Each
+// pin gets an invisible sphere around it that is only there to be hit.
+var hitGeo  = new THREE.SphereGeometry(0.055, 8, 6);
+var hitMat  = new THREE.MeshBasicMaterial({transparent:true, opacity:0, depthWrite:false});
+var selectedPin = -1;
+var insertArmed = false;
 
 // --- planetary ring ---
 // The ring lives inside the globe group, so it shares the planet's equatorial
@@ -619,7 +669,10 @@ var ring = new THREE.Mesh(new THREE.BufferGeometry(), ringFlat);
 ring.rotation.x = -Math.PI/2;
 ring.renderOrder = 2;
 ring.visible = false;
-globe.add(ring);
+var ringPivot = new THREE.Group();
+ringPivot.add(ring);
+tiltGroup.add(ringPivot);
+var ringTiltDeg = 0;
 
 function rebuildRing(){
   var inner = ringInner, outer = ringOuter();
@@ -640,6 +693,256 @@ rebuildRing();
 // Camera distance at which the whole ring system fits in frame.
 function ringFitDist(){
   return (ringOuter() + 0.18) / Math.tan(camera.fov * Math.PI / 360);
+}
+
+// --- flat world shapes ---
+var worldShape = 'globe';           // 'globe' | 'disc' | 'plate'
+var showUnderside = true, showIceWall = true, gratOn = false;
+
+var flat = new THREE.Group();
+flat.visible = false;
+globe.add(flat);
+
+// Disc face: the equirectangular sheet reprojected to azimuthal equidistant,
+// north pole at the centre and the south pole smeared around the rim. That is
+// the projection every flat-earth map uses, and it's why the ice wall sits
+// where it does.
+var DISC_S = 1024;
+var discCanvas = document.createElement('canvas');
+discCanvas.width = discCanvas.height = DISC_S;
+var dctx = discCanvas.getContext('2d');
+var discTex = new THREE.CanvasTexture(discCanvas);
+discTex.encoding = THREE.sRGBEncoding;
+discTex.anisotropy = maxAniso;
+
+// Reading an 8K sheet back as pixels would allocate 134 MB, so the reprojection
+// works from a capped copy instead.
+var discSrcCanvas = document.createElement('canvas');
+var dsctx = discSrcCanvas.getContext('2d');
+
+function paintDisc(){
+  var SW = Math.min(TEX_W, 4096), SH = SW/2;
+  var want = Math.min(2048, Math.max(1024, SW/2));
+  if (DISC_S !== want){
+    DISC_S = want;
+    discCanvas.width = discCanvas.height = DISC_S;
+  }
+  var src;
+  try {
+    discSrcCanvas.width = SW; discSrcCanvas.height = SH;
+    dsctx.drawImage(texCanvas, 0, 0, SW, SH);
+    src = dsctx.getImageData(0, 0, SW, SH).data;
+  } catch(e){ return; }
+
+  var out = dctx.createImageData(DISC_S, DISC_S);
+  var o = out.data, S = DISC_S;
+
+  for (var y=0; y<S; y++){
+    var uy = 1 - (y + 0.5)/S*2;            // image-space up is positive
+    for (var x=0; x<S; x++){
+      var ux = (x + 0.5)/S*2 - 1;
+      var i = (y*S + x)*4;
+      var r = Math.sqrt(ux*ux + uy*uy);
+      if (r > 1){ o[i+3] = 0; continue; }
+
+      var lon = Math.atan2(uy, ux) * 180/Math.PI;   // 0 at image right
+      var sx = ((lon + 180)/360) * SW | 0;
+      var sy = r * SH | 0;
+      if (sx < 0) sx = 0; else if (sx >= SW) sx = SW-1;
+      if (sy < 0) sy = 0; else if (sy >= SH) sy = SH-1;
+
+      var s = (sy*SW + sx)*4;
+      o[i]   = src[s];
+      o[i+1] = src[s+1];
+      o[i+2] = src[s+2];
+      o[i+3] = 255;
+    }
+  }
+  dctx.putImageData(out, 0, 0);
+  discTex.needsUpdate = true;
+}
+
+// Plate face: the map laid down flat, keeping its own proportions. A square
+// map gives a square world.
+var plateCanvas = document.createElement('canvas');
+plateCanvas.width = 2; plateCanvas.height = 2;
+var pctx = plateCanvas.getContext('2d');
+var plateTex = new THREE.CanvasTexture(plateCanvas);
+plateTex.encoding = THREE.sRGBEncoding;
+plateTex.anisotropy = maxAniso;
+var plateAspect = 2;
+
+function paintPlate(){
+  var iw = sourceImg ? imgW(sourceImg) : TEX_W;
+  var ih = sourceImg ? imgH(sourceImg) : TEX_H;
+  var s = Math.min(1, 2048/Math.max(iw, ih));
+  plateCanvas.width  = Math.max(2, Math.round(iw*s));
+  plateCanvas.height = Math.max(2, Math.round(ih*s));
+  pctx.clearRect(0, 0, plateCanvas.width, plateCanvas.height);
+  pctx.drawImage(sourceImg || texCanvas, 0, 0, plateCanvas.width, plateCanvas.height);
+  plateAspect = plateCanvas.width / plateCanvas.height;
+  plateTex.needsUpdate = true;
+}
+
+// Ice wall: a vertical band, brighter and denser at the base.
+function makeIceTexture(){
+  var c = document.createElement('canvas');
+  c.width = 128; c.height = 256;
+  var x = c.getContext('2d');
+  var g = x.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0,   'rgba(226,242,255,0.30)');
+  g.addColorStop(0.45,'rgba(206,232,252,0.72)');
+  g.addColorStop(1,   'rgba(236,248,255,0.96)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 256);
+  for (var i=0;i<70;i++){
+    var px = Math.random()*128;
+    x.strokeStyle = 'rgba(255,255,255,' + (0.05 + Math.random()*0.16).toFixed(3) + ')';
+    x.lineWidth = 0.6 + Math.random()*2.2;
+    x.beginPath(); x.moveTo(px, 0); x.lineTo(px + (Math.random()-0.5)*10, 256); x.stroke();
+  }
+  return c;
+}
+var iceTex = new THREE.CanvasTexture(makeIceTexture());
+iceTex.wrapS = THREE.RepeatWrapping;
+iceTex.repeat.x = 8;
+
+var discTopMat  = new THREE.MeshBasicMaterial({map:discTex,  transparent:true, side:THREE.DoubleSide});
+var plateTopMat = new THREE.MeshBasicMaterial({map:plateTex, side:THREE.DoubleSide});
+var underMat    = new THREE.MeshPhongMaterial({color:0x4A3B2E, flatShading:true, shininess:2});
+var iceMat      = new THREE.MeshPhongMaterial({map:iceTex, transparent:true, side:THREE.DoubleSide,
+                                               shininess:40, color:0xEAF4FF, depthWrite:false});
+var underMesh = null, wallMesh = null;
+
+// Push the hanging mass around so it reads as rock rather than a cone.
+function cragify(geo, amt){
+  var p = geo.attributes.position;
+  for (var i=0;i<p.count;i++){
+    var vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i);
+    if (vy > -0.004) continue;                       // leave the rim alone
+    var n = Math.sin(vx*9.1 + vz*4.3) * Math.cos(vz*7.7 - vx*3.1);
+    var k = 1 + n*amt;
+    p.setX(i, vx*k); p.setZ(i, vz*k);
+    p.setY(i, vy*(1 + n*amt*0.7));
+  }
+  p.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+
+function clearFlat(){
+  for (var i=flat.children.length-1;i>=0;i--){
+    var c = flat.children[i];
+    flat.remove(c);
+    c.traverse(function(n){ if (n.geometry) n.geometry.dispose(); });
+  }
+  underMesh = wallMesh = null;
+}
+
+function buildFlat(){
+  clearFlat();
+  var isDisc = (worldShape === 'disc');
+  var halfW, halfD;
+  var depth = 0.55;
+  var SLAB  = 0.016;      // world thickness; also what stops the z-fighting
+  var wallH = 0.016;      // ice wall height above the surface
+
+  if (isDisc){
+    halfW = halfD = 1;
+    var top = new THREE.Mesh(new THREE.CircleGeometry(1, 192), discTopMat);
+    top.geometry.rotateX(-Math.PI/2);
+    flat.add(top);
+  } else {
+    // Longest side spans 2 units, so a square map gives a square world.
+    if (plateAspect >= 1){ halfW = 1; halfD = 1/plateAspect; }
+    else { halfD = 1; halfW = plateAspect; }
+    var pl = new THREE.Mesh(new THREE.PlaneGeometry(halfW*2, halfD*2), plateTopMat);
+    pl.geometry.rotateX(-Math.PI/2);
+    flat.add(pl);
+  }
+
+  var xz = isDisc ? 1 : halfW/0.7071;
+  var zz = isDisc ? 1 : halfD/0.7071;
+  var seg = isDisc ? 72 : 4;
+
+  // Underside, as a group: a rock slab edge plus the hanging mass below it.
+  // The slab is what separates the map face from the rock, so nothing is
+  // coplanar and the surfaces stop fighting over which draws in front.
+  underMesh = new THREE.Group();
+
+  var rim = new THREE.CylinderGeometry(1, 1, SLAB, isDisc ? 192 : 4, 1, true);
+  if (!isDisc) rim.rotateY(Math.PI/4);
+  rim.translate(0, -SLAB/2, 0);
+  var rimMesh = new THREE.Mesh(rim, underMat);
+  rimMesh.scale.set(xz, 1, zz);
+  underMesh.add(rimMesh);
+
+  var ug = new THREE.ConeGeometry(1, depth, seg, 5);
+  ug.rotateX(Math.PI);
+  if (!isDisc) ug.rotateY(Math.PI/4);
+  ug.translate(0, -depth/2, 0);        // rim sits at y=0 while we roughen it
+  cragify(ug, isDisc ? 0.16 : 0.10);
+  ug.translate(0, -SLAB, 0);           // then drop it below the slab
+  var cone = new THREE.Mesh(ug, underMat);
+  cone.scale.set(xz, 1, zz);
+  underMesh.add(cone);
+
+  underMesh.visible = showUnderside;
+  flat.add(underMesh);
+
+  // Ice wall. A lathed trapezoid rather than a flat band, so it has real
+  // thickness that widens where it piles up against the map surface. Its base
+  // is sunk below the map face; a base cap sitting exactly at y=0 would be
+  // coplanar with the map and the two would fight over which draws in front.
+  var wt = wallH;
+  var yBase = -SLAB*0.55, yTop = wt;
+  var prof = [
+    new THREE.Vector2(1.000 - wt*2.6, yBase),   // inner foot, buried
+    new THREE.Vector2(1.000 - wt*1.1, yTop),    // inner crest
+    new THREE.Vector2(1.004 + wt*0.2, yTop),    // outer crest
+    new THREE.Vector2(1.008,          yBase),   // outer foot, outside the rim
+    new THREE.Vector2(1.000 - wt*2.6, yBase)    // close the base, out of sight
+  ];
+  var wg = new THREE.LatheGeometry(prof, isDisc ? 192 : 4);
+  if (!isDisc) wg.rotateY(Math.PI/4);
+  // Re-map v to height so the texture's dense base always lands at the bottom,
+  // instead of running around the profile loop.
+  var wuv = wg.attributes.uv, wpos = wg.attributes.position;
+  var span = yTop - yBase;
+  for (var k=0;k<wuv.count;k++) wuv.setY(k, (wpos.getY(k) - yBase)/span);
+  wuv.needsUpdate = true;
+
+  wallMesh = new THREE.Mesh(wg, iceMat);
+  wallMesh.scale.set(xz, 1, zz);
+  wallMesh.renderOrder = 3;
+  wallMesh.visible = showIceWall;
+  flat.add(wallMesh);
+}
+
+function refreshFlat(){
+  if (worldShape === 'disc') paintDisc();
+  else if (worldShape === 'plate') paintPlate();
+}
+
+function setShape(s){
+  worldShape = s;
+  var isGlobe = (s === 'globe');
+
+  sphere.visible   = isGlobe;
+  gratMesh.visible = isGlobe && gratOn;
+  pinLayer.visible = isGlobe;
+  flat.visible     = !isGlobe;
+
+  document.getElementById('flatOpts').hidden   = isGlobe;
+  document.getElementById('journeyRow').hidden = !isGlobe;
+  document.getElementById('rFaceCell').hidden  = !isGlobe;
+
+  if (!isGlobe){
+    refreshFlat();
+    buildFlat();
+    // Edge-on, a flat world is a line. Tip it into view and back off enough
+    // to see the whole thing.
+    if (Math.abs(pitch) < 0.32) pitch = 0.62;
+    if (distTarget < 4.4) distTarget = 4.4;
+  }
 }
 
 // --- lights ---
@@ -768,6 +1071,7 @@ function paintMap(){
     tctx.drawImage(sourceImg, 0, sy, iw, sh, 0, j, TEX_W, 1);
   }
   mapTex.needsUpdate = true;
+  if (worldShape !== 'globe') refreshFlat();
 }
 
 // The span at which this image's shapes come out undistorted, if one exists.
@@ -1191,11 +1495,13 @@ function exportGIF(){
   var prevYaw = yaw, prevPR = renderer.getPixelRatio();
   // Never crop the subject out of frame. Rings need far more room than the
   // sphere alone, and how much depends on the width they're set to.
-  var eDist = Math.max(dist, ring.visible ? ringFitDist() : 3.4);
+  var eDist = Math.max(dist, ring.visible ? ringFitDist()
+                                          : (worldShape === 'globe' ? 3.4 : 4.4));
 
   renderer.setPixelRatio(1);
   renderer.setSize(S, S, false);
   camera.aspect = 1; camera.updateProjectionMatrix();
+  camera.clearViewOffset();
   if (transparent){ stars.visible = false; halo.visible = false; }
   renderer.setClearColor(0x0C1220, transparent ? 0 : 1);
 
@@ -1204,8 +1510,8 @@ function exportGIF(){
   var gctx = grab.getContext('2d');
 
   function shoot(i){
-    globe.rotation.set(pitch, prevYaw + (i/N) * Math.PI*2, 0);
-    system.position.set(0,0,0);
+    tiltGroup.rotation.x = pitch;
+    globe.rotation.y = prevYaw + (i/N) * Math.PI*2;
     camera.position.z = eDist;
     renderer.render(scene, camera);
     gctx.clearRect(0,0,S,S);
@@ -1347,10 +1653,28 @@ function endPointer(e){
   if (n < 2) pinchStart = 0;
   if (n === 0){ dragging = false; dragMode = null; }
 
-  // A tap that didn't travel and didn't linger drops a pin.
+  // A tap that didn't travel and didn't linger either selects an existing pin
+  // or drops a new one.
   if (measuring && wasRotate && n === 0 && !moved && Date.now() - downT < 600){
+    var onPin = pickPin(e.clientX, e.clientY);
+    if (onPin !== null){
+      selectedPin = (selectedPin === onPin) ? -1 : onPin;
+      insertArmed = false;
+      rebuildPins(); updatePath();
+      return;
+    }
     var p = pickLocal(e.clientX, e.clientY);
-    if (p){ pins.push({v:p, sea:seaMode}); rebuildPins(); updatePath(); }
+    if (p){
+      var entry = {v:p, sea:seaMode};
+      if (insertArmed && selectedPin >= 0){
+        pins.splice(selectedPin + 1, 0, entry);
+        selectedPin += 1;
+        insertArmed = false;
+      } else {
+        pins.push(entry);
+      }
+      rebuildPins(); updatePath();
+    }
   }
 }
 el.addEventListener('pointerup', endPointer);
@@ -1363,7 +1687,7 @@ el.addEventListener('wheel', function(e){
 
 el.addEventListener('dblclick', function(){ if (!measuring) recenter(); });
 
-function panBy(dx, dy){ panX += dx; panY += dy; userPanned = true; }
+function panBy(dx, dy){ panX += dx; panY += dy; userPanned = true; applyViewOffset(); }
 
 function pinchDist(){
   var k = Object.keys(pointers);
@@ -1384,6 +1708,21 @@ function worldPerPixel(){
   return (2 * dist * Math.tan(camera.fov * Math.PI / 360)) / h;
 }
 
+// Panning is a lens shift, not a move. Sliding the globe sideways in world
+// space puts it off the camera's optical axis, and once it is also pitched the
+// near and far poles pick up different amounts of perspective magnification,
+// which reads as a lean of a couple of degrees. Offsetting the frustum instead
+// keeps the globe on axis, so upright looks upright.
+function applyViewOffset(){
+  var w = stage.clientWidth, h = stage.clientHeight;
+  if (!w || !h) return;
+  if (!panX && !panY){
+    if (camera.view && camera.view.enabled) camera.clearViewOffset();
+    return;
+  }
+  camera.setViewOffset(w, h, -panX, -panY, w, h);
+}
+
 // Centre the globe in the area the drawer isn't covering.
 function recenter(){
   var d = document.getElementById('drawer');
@@ -1397,6 +1736,7 @@ function recenter(){
     panY = -(window.innerHeight - r.top) / 2;
   }
   userPanned = false;
+  applyViewOffset();
 }
 
 /* ---------------------------------------------------------------
@@ -1417,6 +1757,19 @@ function pickLocal(cx, cy){
   var p = hit[0].point.clone();
   sphere.worldToLocal(p);
   return p.normalize();
+}
+
+// Which existing pin, if any, is under this tap.
+function pickPin(cx, cy){
+  var r = el.getBoundingClientRect();
+  _ndc.x =  ((cx - r.left) / r.width)  * 2 - 1;
+  _ndc.y = -((cy - r.top)  / r.height) * 2 + 1;
+  _ray.setFromCamera(_ndc, camera);
+  var targets = pinLayer.children.filter(function(c){
+    return c.userData && c.userData.pinIndex !== undefined;
+  });
+  var hit = _ray.intersectObjects(targets, false);
+  return hit.length ? hit[0].object.userData.pinIndex : null;
 }
 
 // Great-circle angle times radius. This is the real surface distance between
@@ -1468,15 +1821,21 @@ function rebuildPins(){
     pinLayer.remove(c);
     if (c.geometry && c.geometry !== pinGeo) c.geometry.dispose();
   }
-  pins.forEach(function(p){
+  pins.forEach(function(p, idx){
     var kind = p.sea ? 'sea' : 'land';
-    var m = new THREE.Mesh(pinGeo, pinDot[kind]);
+    var sel = (idx === selectedPin);
+    var m = new THREE.Mesh(sel ? selGeo : pinGeo, sel ? selMat : pinDot[kind]);
     m.position.copy(p.v).multiplyScalar(1.03);
     pinLayer.add(m);
     var stalk = new THREE.BufferGeometry().setFromPoints([
       p.v.clone().multiplyScalar(1.0), p.v.clone().multiplyScalar(1.03)
     ]);
     pinLayer.add(new THREE.Line(stalk, pinLine[kind]));
+
+    var hit = new THREE.Mesh(hitGeo, hitMat);
+    hit.position.copy(p.v).multiplyScalar(1.03);
+    hit.userData.pinIndex = idx;
+    pinLayer.add(hit);
   });
   for (var j=1;j<pins.length;j++){
     var g = new THREE.BufferGeometry().setFromPoints(arcPoints(pins[j-1].v, pins[j].v, 72));
@@ -1497,34 +1856,56 @@ function fmtLatLon(ll){
          Math.abs(ll.lon).toFixed(1) + '\u00B0' + (ll.lon>=0?'E':'W');
 }
 
+function syncPinButtons(){
+  var has = selectedPin >= 0 && selectedPin < pins.length;
+  document.getElementById('insPin').disabled = !has;
+  document.getElementById('delPin').disabled = !has;
+  document.getElementById('insPin').textContent =
+    insertArmed ? 'Now tap the globe' : 'Insert after';
+}
+
 function updatePath(){
   var box = document.getElementById('legs');
   var cell = document.getElementById('rPathCell');
   var html = '';
 
+  if (selectedPin >= pins.length) selectedPin = -1;
+  if (selectedPin < 0) insertArmed = false;
+
   if (pins.length === 0){
     box.innerHTML = '';
     cell.hidden = true;
+    syncPinButtons();
     return;
   }
   if (pins.length === 1){
-    html = '<div class="leg"><span>Start</span><b>' + fmtLatLon(latLonOf(pins[0].v)) + '</b></div>' +
+    html = '<button class="leg pinrow' + (selectedPin === 0 ? ' sel' : '') +
+           '" data-i="0"><span>Start</span><b>' + fmtLatLon(latLonOf(pins[0].v)) + '</b></button>' +
            '<div class="leg"><span>Tap again to measure a leg</span></div>';
     box.innerHTML = html;
     cell.hidden = true;
+    syncPinButtons();
     return;
   }
 
   function row(a, b, cls){
     return '<div class="leg' + (cls ? ' ' + cls : '') + '"><span>' + a + '</span><b>' + b + '</b></div>';
   }
-
-  for (var i=1;i<pins.length;i++){
-    var tag = pins[i].sea
-      ? ' <em class="sea">sea</em>'
-      : ' <em class="land">land</em>';
-    html += row('Leg ' + i + tag, fmtDist(legKm(pins[i-1].v, pins[i].v)));
+  function pinRow(i){
+    var sel = (i === selectedPin) ? ' sel' : '';
+    var label, val;
+    if (i === 0){
+      label = 'Start';
+      val = fmtLatLon(latLonOf(pins[0].v));
+    } else {
+      label = 'Leg ' + i + (pins[i].sea ? ' <em class="sea">sea</em>' : ' <em class="land">land</em>');
+      val = fmtDist(legKm(pins[i-1].v, pins[i].v));
+    }
+    return '<button class="leg pinrow' + sel + '" data-i="' + i + '"><span>' +
+           label + '</span><b>' + val + '</b></button>';
   }
+
+  for (var i=0;i<pins.length;i++) html += pinRow(i);
 
   var s = splitKm();
   html += row('Total', fmtDist(s.total), 'tot');
@@ -1549,6 +1930,7 @@ function updatePath(){
 
   document.getElementById('rPath').textContent = fmtDist(s.total);
   cell.hidden = false;
+  syncPinButtons();
 }
 
 /* ---------------------------------------------------------------
@@ -1574,6 +1956,7 @@ function resize(){
   camera.aspect = w/h;
   camera.updateProjectionMatrix();
   if (!userPanned) recenter();
+  applyViewOffset();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -1592,12 +1975,10 @@ function tick(){
     if (vYaw === 0) yaw += idleSpin * 0.22 * dt;
   }
 
-  globe.rotation.set(pitch, yaw, 0);
+  tiltGroup.rotation.x = pitch;
+  globe.rotation.y = yaw;
   dist += (distTarget - dist) * Math.min(1, dt*9);
   camera.position.z = dist;
-
-  var wpp = worldPerPixel();
-  system.position.set(panX * wpp, -panY * wpp, 0);
 
   stars.rotation.y += dt * 0.004;
 
@@ -1639,6 +2020,7 @@ function useImage(img, name){
   applyIdealSpan();
   paintMap();
   updateHint();
+  if (worldShape === 'plate') buildFlat();   // proportions may have changed
 }
 
 function say(msg){ loadTxt.textContent = msg; }
@@ -1832,7 +2214,7 @@ function tog(id, fn){
     fn(on);
   });
 }
-tog('tGrat',  function(on){ gratMesh.visible = on; });
+tog('tGrat',  function(on){ gratOn = on; gratMesh.visible = on && worldShape === 'globe'; });
 tog('tSun',   function(on){
   sphere.material = on ? matLit : matFlat;
   ring.material   = on ? ringLit : ringFlat;
@@ -1872,6 +2254,12 @@ $('ringW').addEventListener('input', function(){
   $('ringWNum').textContent = ringWidth.toFixed(2) + ' R';
   rebuildRing();
 });
+$('ringTilt').addEventListener('input', function(){
+  ringTiltDeg = +this.value;
+  if (Math.abs(ringTiltDeg) < 2) ringTiltDeg = 0;
+  $('ringTiltNum').textContent = (ringTiltDeg > 0 ? '+' : '') + ringTiltDeg + '\u00B0';
+  ringPivot.rotation.z = ringTiltDeg * Math.PI/180;
+});
 $('ringOp').addEventListener('input', function(){
   $('ringOpNum').textContent = this.value + '%';
   applyRingLook();
@@ -1890,6 +2278,49 @@ applyRingLook();
 tog('tAlpha',  function(){});
 tog('tDither', function(){});
 
+// texture detail
+var maxTexSize = renderer.capabilities.maxTextureSize;
+function setDetail(w){
+  if (w > maxTexSize) w = maxTexSize;
+  TEX_W = w; TEX_H = w/2;
+  texCanvas.width = TEX_W; texCanvas.height = TEX_H;
+  paintMap();
+}
+(function(){
+  var seg = $('detail');
+  Array.prototype.forEach.call(seg.querySelectorAll('button'), function(b){
+    // Grey out anything this GPU can't actually hold.
+    if (+b.dataset.d > maxTexSize) b.disabled = true;
+  });
+  seg.addEventListener('click', function(e){
+    var b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){
+      x.setAttribute('aria-pressed', String(x === b));
+    });
+    setDetail(+b.dataset.d);
+  });
+  // Start at 4K where the hardware allows, since 2K visibly softens a
+  // detailed map long before the screen runs out of pixels.
+  if (maxTexSize >= 4096){
+    var four = seg.querySelector('[data-d="4096"]');
+    seg.querySelector('[data-d="2048"]').setAttribute('aria-pressed','false');
+    four.setAttribute('aria-pressed','true');
+    setDetail(4096);
+  }
+})();
+
+// world shape
+$('shape').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){
+    x.setAttribute('aria-pressed', String(x === b));
+  });
+  setShape(b.dataset.w);
+});
+tog('tUnder', function(on){ showUnderside = on; if (underMesh) underMesh.visible = on; });
+tog('tIce',   function(on){ showIceWall = on;   if (wallMesh)  wallMesh.visible  = on; });
+
 // journey
 tog('tMeasure', function(on){ measuring = on; });
 tog('tSea',     function(on){ seaMode = on; });
@@ -1899,11 +2330,34 @@ $('radius').addEventListener('input', function(){
   planetRadius = (isFinite(v) && v > 0) ? v : 6371;
   updatePath();
 });
+function selectPin(i){
+  selectedPin = (selectedPin === i) ? -1 : i;
+  insertArmed = false;
+  rebuildPins(); updatePath();
+}
+$('legs').addEventListener('click', function(e){
+  var b = e.target.closest('[data-i]');
+  if (b) selectPin(+b.dataset.i);
+});
+$('insPin').addEventListener('click', function(){
+  if (selectedPin < 0) return;
+  insertArmed = !insertArmed;
+  syncPinButtons();
+});
+$('delPin').addEventListener('click', function(){
+  if (selectedPin < 0) return;
+  pins.splice(selectedPin, 1);
+  selectedPin = -1; insertArmed = false;
+  rebuildPins(); updatePath();
+});
 $('undoPin').addEventListener('click', function(){
-  pins.pop(); rebuildPins(); updatePath();
+  pins.pop();
+  if (selectedPin >= pins.length) selectedPin = -1;
+  rebuildPins(); updatePath();
 });
 $('clearPins').addEventListener('click', function(){
-  pins.length = 0; rebuildPins(); updatePath();
+  pins.length = 0; selectedPin = -1; insertArmed = false;
+  rebuildPins(); updatePath();
 });
 
 $('center').addEventListener('click', recenter);
